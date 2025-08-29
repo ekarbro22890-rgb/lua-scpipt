@@ -46,28 +46,17 @@ local function enableNoclip(character)
     end
 end
 
--- Функция поиска спавнпоинтов (упрощенная)
+-- Функция поиска спавнпоинтов
 local function findSpawnPoints()
     local spawnPoints = {}
     
-    -- Ищем любые части с spawn в названии
+    -- Ищем спавнпоинты в разных местах
     for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("Part") and (obj.Name:lower():find("spawn") or obj.Name:lower():find("start")) then
+        if (obj:IsA("SpawnLocation") or 
+            obj.Name:lower():find("spawn") or 
+            obj.Name:lower():find("start") or
+            obj.Name:lower():find("team")) then
             table.insert(spawnPoints, obj)
-        end
-    end
-    
-    -- Если не нашли, создаем тестовые точки
-    if #spawnPoints == 0 then
-        for i = 1, 5 do
-            local part = Instance.new("Part")
-            part.Position = Vector3.new(i * 10, 5, 0)
-            part.Name = "SpawnPoint_" .. i
-            part.Anchored = true
-            part.CanCollide = false
-            part.Transparency = 1
-            part.Parent = workspace
-            table.insert(spawnPoints, part)
         end
     end
     
@@ -85,7 +74,7 @@ local function findFifthTool()
             end
         end
         
-        print("Found tools:", #tools)
+        print("Найдено инструментов:", #tools)
         for i, tool in ipairs(tools) do
             print(i, tool.Name)
         end
@@ -93,43 +82,41 @@ local function findFifthTool()
         if #tools >= 5 then
             return tools[5]
         elseif #tools > 0 then
-            return tools[#tools] -- Берем последний если меньше 5
+            return tools[#tools]
         end
     end
     return nil
 end
 
--- Функция использования инструмента
+-- Функция использования инструмента (без создания кубов)
 local function useTool(tool, character)
     if tool and tool:IsA("Tool") then
         -- Экипируем инструмент
-        tool.Parent = character
-        wait(0.2)
-        
-        -- Активируем инструмент
-        if tool:FindFirstChild("Handle") then
-            tool:Activate()
-            
-            -- Создаем визуальный эффект
-            local effect = Instance.new("Part")
-            effect.Name = "Used_" .. tool.Name
-            effect.Size = Vector3.new(3, 3, 3)
-            effect.Position = character.HumanoidRootPart.Position + Vector3.new(0, 1.5, 0)
-            effect.BrickColor = BrickColor.new("Bright orange")
-            effect.Anchored = true
-            effect.CanCollide = false
-            effect.Material = Enum.Material.Neon
-            effect.Parent = workspace
-            
-            wait(0.3)
-            
-            -- Возвращаем инструмент в инвентарь
-            tool.Parent = LP.Backpack
-            
-            return effect
+        local currentTool = character:FindFirstChildOfClass("Tool")
+        if currentTool then
+            currentTool.Parent = LP.Backpack
         end
+        
+        tool.Parent = character
+        wait(0.3)
+        
+        -- Активируем инструмент (эмулируем использование)
+        if tool:FindFirstChild("Handle") then
+            -- Эмулируем клик для использования инструмента
+            for i = 1, 3 do
+                tool:Activate()
+                wait(0.1)
+            end
+            
+            -- Ждем пока инструмент сделает свое действие
+            wait(0.5)
+        end
+        
+        -- Возвращаем инструмент в инвентарь
+        tool.Parent = LP.Backpack
+        return true
     end
-    return nil
+    return false
 end
 
 -- Основная функция
@@ -151,16 +138,19 @@ local function startProcess()
     
     -- Ищем 5-й инструмент
     Status.Text = "Status: Finding 5th tool..."
+    wait(1)
+    
     local fifthTool = findFifthTool()
     
     if not fifthTool then
-        Status.Text = "Status: No tools found in backpack!"
+        Status.Text = "Status: No tools found!"
         isRunning = false
         noclipEnabled = false
         return
     end
     
     Status.Text = "Status: Using: " .. fifthTool.Name
+    wait(1)
     
     -- Ищем спавнпоинты
     Status.Text = "Status: Finding spawn points..."
@@ -184,16 +174,18 @@ local function startProcess()
         
         Status.Text = "Status: Point " .. i .. "/" .. #spawnPoints
         
-        -- Телепортируемся
-        humanoidRootPart.CFrame = CFrame.new(spawnPoint.Position + Vector3.new(0, 3, 0))
+        -- Телепортируемся к точке
+        humanoidRootPart.CFrame = CFrame.new(spawnPoint.Position + Vector3.new(0, 5, 0))
         wait(0.5)
         
-        -- Используем инструмент
+        -- Используем 5-й инструмент
         Status.Text = "Status: Using " .. fifthTool.Name
-        local effect = useTool(fifthTool, character)
+        local success = useTool(fifthTool, character)
         
-        if effect then
-            Status.Text = "Status: Placed at point " .. i
+        if success then
+            Status.Text = "Status: Used at point " .. i
+        else
+            Status.Text = "Status: Failed to use tool"
         end
         
         wait(1)
@@ -221,4 +213,16 @@ RS.Stepped:Connect(function()
     end
 end)
 
-print("Fifth Item Script loaded! Check F9 for debug info.")
+-- Горячая клавиша
+UI.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.F and UI:IsKeyDown(Enum.KeyCode.LeftControl) then
+        if not isRunning then
+            startProcess()
+        else
+            isRunning = false
+            Status.Text = "Status: Stopped by hotkey"
+        end
+    end
+end)
+
+print("Fifth Item Script loaded! Press the button to use 5th tool on spawn points.")
