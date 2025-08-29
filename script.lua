@@ -46,16 +46,23 @@ local function enableNoclip(character)
     end
 end
 
--- Функция поиска спавнпоинтов
+-- Функция поиска спавнпоинтов (исправленная)
 local function findSpawnPoints()
     local spawnPoints = {}
     
     -- Ищем спавнпоинты в разных местах
     for _, obj in pairs(workspace:GetDescendants()) do
-        if (obj:IsA("SpawnLocation") or 
-            obj.Name:lower():find("spawn") or 
-            obj.Name:lower():find("start") or
-            obj.Name:lower():find("team")) then
+        if obj:IsA("SpawnLocation") then
+            table.insert(spawnPoints, obj)
+        elseif obj:IsA("Model") and (obj.Name:lower():find("spawn") or obj.Name:lower():find("start")) then
+            -- Если это модель, ищем в ней части
+            for _, part in pairs(obj:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    table.insert(spawnPoints, part)
+                    break
+                end
+            end
+        elseif obj:IsA("BasePart") and (obj.Name:lower():find("spawn") or obj.Name:lower():find("start")) then
             table.insert(spawnPoints, obj)
         end
     end
@@ -80,7 +87,7 @@ local function findFifthTool()
         end
         
         if #tools >= 5 then
-            return tools[5]
+            return tools[5] -- Superball
         elseif #tools > 0 then
             return tools[#tools]
         end
@@ -88,7 +95,7 @@ local function findFifthTool()
     return nil
 end
 
--- Функция использования инструмента (без создания кубов)
+-- Функция использования инструмента
 local function useTool(tool, character)
     if tool and tool:IsA("Tool") then
         -- Экипируем инструмент
@@ -100,15 +107,12 @@ local function useTool(tool, character)
         tool.Parent = character
         wait(0.3)
         
-        -- Активируем инструмент (эмулируем использование)
+        -- Активируем инструмент
         if tool:FindFirstChild("Handle") then
-            -- Эмулируем клик для использования инструмента
             for i = 1, 3 do
                 tool:Activate()
                 wait(0.1)
             end
-            
-            -- Ждем пока инструмент сделает свое действие
             wait(0.5)
         end
         
@@ -117,6 +121,28 @@ local function useTool(tool, character)
         return true
     end
     return false
+end
+
+-- Функция получения позиции объекта (исправленная)
+local function getObjectPosition(obj)
+    if obj:IsA("BasePart") then
+        return obj.Position
+    elseif obj:IsA("Model") then
+        local primaryPart = obj.PrimaryPart
+        if primaryPart then
+            return primaryPart.Position
+        else
+            -- Ищем любую часть в модели
+            for _, part in pairs(obj:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    return part.Position
+                end
+            end
+        end
+    elseif obj:IsA("SpawnLocation") then
+        return obj.Position
+    end
+    return Vector3.new(0, 0, 0)
 end
 
 -- Основная функция
@@ -174,11 +200,14 @@ local function startProcess()
         
         Status.Text = "Status: Point " .. i .. "/" .. #spawnPoints
         
+        -- Получаем позицию (исправлено!)
+        local position = getObjectPosition(spawnPoint)
+        
         -- Телепортируемся к точке
-        humanoidRootPart.CFrame = CFrame.new(spawnPoint.Position + Vector3.new(0, 5, 0))
+        humanoidRootPart.CFrame = CFrame.new(position + Vector3.new(0, 5, 0))
         wait(0.5)
         
-        -- Используем 5-й инструмент
+        -- Используем 5-й инструмент (Superball)
         Status.Text = "Status: Using " .. fifthTool.Name
         local success = useTool(fifthTool, character)
         
@@ -225,4 +254,4 @@ UI.InputBegan:Connect(function(input)
     end
 end)
 
-print("Fifth Item Script loaded! Press the button to use 5th tool on spawn points.")
+print("Fifth Item Script loaded! Will use Superball (5th tool) on spawn points.")
